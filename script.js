@@ -22,6 +22,7 @@ const routeList = document.getElementById("routeList");
 const movementSteps = document.getElementById("movementSteps");
 const depthRoute = document.getElementById("depthRoute");
 const depthRouteFill = document.getElementById("depthRouteFill");
+const depthStart = document.getElementById("depthStart");
 const depthPerson = document.getElementById("depthPerson");
 const depthChip = document.getElementById("depthChip");
 const depthLabels = document.getElementById("depthLabels");
@@ -47,10 +48,11 @@ let routePoints = [];
 let virtualOrigin = null;
 let virtualPosition = { north: 0, east: 0 };
 let virtualRoutePoints = [];
-let depthProfilePoints = [{ distance: 0, depth: 0 }];
+let depthProfilePoints = [{ forward: 0, distance: 0, depth: 0 }];
 let latestPhoneSnapshot = null;
 let acceptedPhoneLocation = null;
 let lastAcceptedPhoneAt = 0;
+let trackingOrigin = null;
 let calibration = {
   beta: 0,
   gamma: 0,
@@ -64,14 +66,14 @@ let motionStreak = 0;
 let profileTransform = { scale: 1, x: 0, y: 0 };
 
 const MAX_ROUTE_POINTS = 120;
-const MIN_ROUTE_MOVE_METERS = 0.2;
+const MIN_ROUTE_MOVE_METERS = 1;
 const VIRTUAL_STEP_GAP = 1200;
 const GRAVITY_MOTION = 9.81;
 const WALK_MOTION_THRESHOLD = 1.25;
 const REQUIRED_MOTION_STREAK = 1;
 const PHONE_UPDATE_INTERVAL = 1000;
-const MIN_GPS_ACCEPT_METERS = 0.2;
-const DEPTH_MAX_METERS = 100;
+const MIN_GPS_ACCEPT_METERS = 1;
+const DEPTH_MAX_METERS = 10;
 const DEPTH_LEFT = 142;
 const DEPTH_RIGHT = 825;
 const DEPTH_SURFACE_Y = 142;
@@ -119,13 +121,14 @@ function resetTrackingProfile() {
   resetProfileView();
   virtualPosition = { north: 0, east: 0 };
   virtualRoutePoints = [{ north: 0, east: 0 }];
-  depthProfilePoints = [{ distance: 0, depth: 0 }];
+  depthProfilePoints = [{ forward: 0, distance: 0, depth: 0 }];
   lastVirtualStepAt = 0;
   motionStreak = 0;
 
   if (latestPhoneSnapshot && latestPhoneSnapshot.lat !== null && latestPhoneSnapshot.lng !== null) {
     const lat = Number(latestPhoneSnapshot.lat);
     const lng = Number(latestPhoneSnapshot.lng);
+    trackingOrigin = [lat, lng];
     acceptedPhoneLocation = [lat, lng];
     lastAcceptedPhoneAt = Date.now();
     routePoints = [[lat, lng]];
@@ -257,7 +260,7 @@ function getRelativePoints() {
     return [];
   }
 
-  const origin = routePoints[0];
+  const origin = trackingOrigin || routePoints[0];
   return routePoints.map((point) => latLngToOffsetMeters(origin, point));
 }
 
@@ -297,17 +300,19 @@ function updateDepthProfile() {
   }
 
   const relativePoints = getRelativePoints();
-  const maxDistance = Math.max(
+  const maxForward = Math.max(
     20,
-    depthProfilePoints.reduce((max, point) => Math.max(max, point.distance), 0)
+    depthProfilePoints.reduce((max, point) => Math.max(max, Math.abs(point.forward || 0)), 0)
   );
   const directionScale = getDirectionScale(relativePoints);
+  const profileCenterX = (DEPTH_LEFT + DEPTH_RIGHT) / 2;
+  const profileHalfWidth = (DEPTH_RIGHT - DEPTH_LEFT) / 2;
 
   const points = depthProfilePoints.map((point) => {
-    const x = DEPTH_LEFT + (point.distance / maxDistance) * (DEPTH_RIGHT - DEPTH_LEFT);
+    const x = profileCenterX + ((point.forward || 0) / maxForward) * profileHalfWidth;
     const clampedDepth = Math.max(0, Math.min(DEPTH_MAX_METERS, point.depth));
     const y = DEPTH_SURFACE_Y + (clampedDepth / DEPTH_MAX_METERS) * (DEPTH_BOTTOM_Y - DEPTH_SURFACE_Y);
-    return { x, y, depth: clampedDepth, distance: point.distance };
+    return { x, y, depth: clampedDepth, distance: point.distance, forward: point.forward || 0 };
   });
 
   const directionPoints = points.map((point, index) => {
@@ -323,9 +328,12 @@ function updateDepthProfile() {
   const latest = points[points.length - 1];
   const latestRelative = relativePoints[relativePoints.length - 1] || { north: 0, east: 0 };
   const currentVisualPoint = directionPoints[directionPoints.length - 1] || latest;
+  const originPoint = points[0] || { x: profileCenterX, y: DEPTH_SURFACE_Y };
 
   depthRoute.setAttribute("points", pointString);
   directionRoute.setAttribute("points", directionString);
+  depthStart.setAttribute("cx", originPoint.x);
+  depthStart.setAttribute("cy", originPoint.y);
   depthPerson.setAttribute("cx", latest.x);
   depthPerson.setAttribute("cy", currentVisualPoint.y);
   movingScale.setAttribute("transform", `translate(${(currentVisualPoint.x - 142).toFixed(1)} ${(currentVisualPoint.y - 104).toFixed(1)})`);
@@ -336,17 +344,17 @@ function updateDepthProfile() {
   profileDepth.textContent = `-${latest.depth.toFixed(1)} m`;
   profilePosition.textContent = positionText;
 
-  const fillPath = `M ${DEPTH_LEFT},${DEPTH_SURFACE_Y} L ${pointString.replaceAll(" ", " L ")} L ${latest.x.toFixed(1)},${DEPTH_SURFACE_Y} Z`;
+  const fillPath = `M ${originPoint.x.toFixed(1)},${DEPTH_SURFACE_Y} L ${pointString.replaceAll(" ", " L ")} L ${latest.x.toFixed(1)},${DEPTH_SURFACE_Y} Z`;
   depthRouteFill.setAttribute("d", fillPath);
 
   const labelPoints = directionPoints
-    .map((point, index) => ({ ...point, distance: points[index]?.distance || 0 }))
+    .map((point, index) => ({ ...point, forward: points[index]?.forward || 0 }))
     .filter((_, index) => index === 0 || index === directionPoints.length - 1 || index % 8 === 0)
     .slice(-5);
 
   depthLabels.innerHTML = labelPoints
     .map((point, index) => {
-      const label = index === labelPoints.length - 1 ? "Current" : `${point.distance.toFixed(0)}m`;
+      const label = index === labelPoints.length - 1 ? "Current" : `${point.forward.toFixed(0)}m`;
       return `<g><line x1="${point.x.toFixed(1)}" y1="${point.y.toFixed(1)}" x2="${point.x.toFixed(1)}" y2="${(point.y - 28).toFixed(1)}" class="depth-callout"></line><circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="4" class="depth-dot"></circle><text x="${(point.x + 7).toFixed(1)}" y="${(point.y - 31).toFixed(1)}" class="depth-small-label">${label}</text></g>`;
     })
     .join("");
@@ -361,15 +369,16 @@ function updateDepthProfile() {
     : "<li><span>Start</span><strong>No movement yet</strong></li>";
 }
 
-function addDepthPoint(stepMeters, data) {
-  const latest = depthProfilePoints[depthProfilePoints.length - 1] || { distance: 0, depth: 0 };
+function addDepthPoint(stepMeters, data, forwardPosition = null) {
+  const latest = depthProfilePoints[depthProfilePoints.length - 1] || { forward: 0, distance: 0, depth: 0 };
   const beta = Number(data.beta || 0) - (calibration.active ? calibration.beta : 0);
   const tiltDepth = Math.max(-0.8, Math.min(0.8, beta / 45));
   const depthDelta = stepMeters * tiltDepth;
   const nextDepth = Math.max(0, Math.min(DEPTH_MAX_METERS, latest.depth + depthDelta));
   const nextDistance = latest.distance + stepMeters;
+  const nextForward = typeof forwardPosition === "number" ? forwardPosition : latest.forward + stepMeters;
 
-  depthProfilePoints.push({ distance: nextDistance, depth: nextDepth });
+  depthProfilePoints.push({ forward: nextForward, distance: nextDistance, depth: nextDepth });
 
   if (depthProfilePoints.length > MAX_ROUTE_POINTS) {
     depthProfilePoints.shift();
@@ -412,7 +421,7 @@ function updateVirtualMovement(data) {
   }
 
   virtualRoutePoints.push({ ...virtualPosition });
-  addDepthPoint(stepMeters, data);
+  addDepthPoint(stepMeters, data, virtualPosition.north);
 
   if (virtualRoutePoints.length > MAX_ROUTE_POINTS) {
     virtualRoutePoints.shift();
@@ -552,9 +561,10 @@ function updateLiveMap(lat, lng) {
     liveMarker = L.marker([lat, lng], { icon: personIcon }).addTo(liveMap);
 
     routePoints = [[lat, lng]];
+    trackingOrigin = [lat, lng];
     virtualOrigin = [lat, lng];
     virtualRoutePoints = [{ north: 0, east: 0 }];
-    depthProfilePoints = [{ distance: 0, depth: 0 }];
+    depthProfilePoints = [{ forward: 0, distance: 0, depth: 0 }];
     routeLine = L.polyline(routePoints, {
       color: "#38bdf8",
       weight: 5,
@@ -566,8 +576,10 @@ function updateLiveMap(lat, lng) {
     return;
   }
 
+  const previousPoint = routePoints[routePoints.length - 1] || [lat, lng];
   addRoutePoint(lat, lng);
-  addDepthPoint(Math.max(distanceMeters(routePoints[routePoints.length - 2] || [lat, lng], [lat, lng]), 0.2), { beta: 8, motion: 10.8 });
+  const gpsRelative = trackingOrigin ? latLngToOffsetMeters(trackingOrigin, [lat, lng]) : { north: 0 };
+  addDepthPoint(Math.max(distanceMeters(previousPoint, [lat, lng]), 0.2), { beta: 8, motion: 10.8 }, gpsRelative.north);
   animateMarkerTo(lat, lng);
   liveMap.panTo([lat, lng], {
     animate: true,
