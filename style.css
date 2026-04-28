@@ -159,6 +159,130 @@ button:disabled {
   color: #ffffff;
 }
 
+.sos-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: none;
+  place-items: center;
+  padding: 20px;
+  background: rgba(4, 9, 17, 0.72);
+  backdrop-filter: blur(8px);
+}
+
+.sos-modal.active {
+  display: grid;
+}
+
+.sos-modal-card {
+  width: min(520px, 100%);
+  padding: 28px;
+  border: 2px solid rgba(239, 68, 68, 0.72);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(127, 29, 29, 0.96), rgba(17, 24, 39, 0.98));
+  color: #ffffff;
+  text-align: center;
+  box-shadow:
+    0 0 0 10px rgba(239, 68, 68, 0.14),
+    0 30px 80px rgba(0, 0, 0, 0.55);
+  animation: sosModalPulse 1s infinite;
+}
+
+.warning-triangle {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 0;
+  height: 0;
+  margin: 0 auto 18px;
+  border-left: 76px solid transparent;
+  border-right: 76px solid transparent;
+  border-bottom: 132px solid #ef4444;
+  color: #ffffff;
+  font-size: 58px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.warning-triangle::after {
+  content: "!";
+  position: absolute;
+  top: 44px;
+  left: -14px;
+}
+
+.sos-modal-card h2 {
+  margin: 0;
+  font-size: clamp(34px, 8vw, 56px);
+  line-height: 1;
+}
+
+.sos-modal-card p {
+  color: #fecaca;
+  font-weight: 800;
+}
+
+.sos-location-box {
+  margin-top: 18px;
+  padding: 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.sos-location-box span {
+  display: block;
+  color: #fecaca;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+}
+
+.sos-location-box strong {
+  display: block;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+  font-size: 20px;
+}
+
+.sos-modal-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+.sos-modal-actions a,
+.sos-modal-actions button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 0;
+  background: #ffffff;
+  color: #7f1d1d;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.sos-modal-actions button {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+@keyframes sosModalPulse {
+  50% {
+    transform: scale(1.015);
+    box-shadow:
+      0 0 0 16px rgba(239, 68, 68, 0.1),
+      0 30px 80px rgba(0, 0, 0, 0.55);
+  }
+}
+
 @keyframes sosPulse {
   50% {
     border-color: rgba(255, 255, 255, 0.75);
@@ -318,10 +442,16 @@ small {
   font-size: 22px;
 }
 
-.map-layout {
+.tracking-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 330px;
+  grid-template-columns: minmax(0, 0.92fr) minmax(420px, 1.08fr);
   gap: 16px;
+  align-items: start;
+}
+
+.map-column {
+  display: grid;
+  gap: 12px;
 }
 
 .live-map {
@@ -335,9 +465,13 @@ small {
 }
 
 .route-panel {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 12px;
+}
+
+.route-panel .route-stats {
+  grid-column: 1 / -1;
 }
 
 .route-card,
@@ -449,19 +583,22 @@ small {
 }
 
 .depth-panel {
-  margin-top: 18px;
+  margin-top: 0;
   padding: 16px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: rgba(17, 28, 46, 0.78);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 22px 46px rgba(0, 0, 0, 0.28);
 }
 
 .depth-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
 .depth-head h2 {
@@ -478,22 +615,44 @@ small {
   white-space: nowrap;
 }
 
+.depth-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: -4px;
+}
+
+.profile-tools {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.profile-tools button {
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 7px;
+}
+
 .depth-svg {
   display: block;
   width: 100%;
-  min-height: 340px;
+  height: 430px;
+  min-height: 0;
   border-radius: 8px;
   overflow: hidden;
   background: #d7bda5;
-}
-
-.profile-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 330px;
-  gap: 16px;
+  cursor: default;
+  box-shadow:
+    inset 0 18px 34px rgba(255, 255, 255, 0.18),
+    inset 0 -24px 34px rgba(0, 0, 0, 0.22),
+    0 18px 36px rgba(0, 0, 0, 0.32);
 }
 
 .profile-side {
+  margin-top: 12px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -513,6 +672,10 @@ small {
 
 .earth {
   fill: url(#earthGradient);
+}
+
+.earth-shadow {
+  fill: rgba(44, 32, 24, 0.32);
 }
 
 .depth-axis,
@@ -546,7 +709,9 @@ small {
   stroke-width: 8;
   stroke-linecap: round;
   stroke-linejoin: round;
-  filter: drop-shadow(0 0 7px rgba(34, 211, 238, 0.7));
+  filter:
+    drop-shadow(0 0 7px rgba(34, 211, 238, 0.7))
+    drop-shadow(0 9px 6px rgba(0, 0, 0, 0.28));
 }
 
 .direction-route {
@@ -556,7 +721,9 @@ small {
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-dasharray: 9 9;
-  filter: drop-shadow(0 0 7px rgba(250, 204, 21, 0.68));
+  filter:
+    drop-shadow(0 0 7px rgba(250, 204, 21, 0.68))
+    drop-shadow(0 8px 5px rgba(0, 0, 0, 0.3));
 }
 
 .depth-start {
@@ -569,7 +736,9 @@ small {
   fill: #facc15;
   stroke: #06121f;
   stroke-width: 4;
-  filter: drop-shadow(0 7px 9px rgba(0, 0, 0, 0.42));
+  filter:
+    drop-shadow(0 0 8px rgba(250, 204, 21, 0.72))
+    drop-shadow(0 12px 10px rgba(0, 0, 0, 0.48));
 }
 
 .depth-dot {
@@ -582,6 +751,21 @@ small {
   stroke: #ffffff;
   stroke-width: 1.5;
   stroke-dasharray: 5 5;
+}
+
+.moving-scale line {
+  stroke: #ffffff;
+  stroke-width: 2.5;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45));
+}
+
+.moving-scale text {
+  fill: #ffffff;
+  font-size: 14px;
+  font-weight: 900;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.5);
+  stroke-width: 3px;
 }
 
 .person-marker {
@@ -683,8 +867,7 @@ small {
 }
 
 @media (max-width: 900px) {
-  .map-layout,
-  .profile-layout {
+  .tracking-layout {
     grid-template-columns: 1fr;
   }
 }
@@ -716,5 +899,17 @@ small {
 
   .live-map {
     height: 360px;
+  }
+
+  .depth-svg {
+    height: 360px;
+  }
+
+  .route-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .route-panel .route-stats {
+    grid-column: auto;
   }
 }

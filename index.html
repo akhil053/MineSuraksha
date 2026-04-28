@@ -42,6 +42,22 @@
       <button id="clearSos">Clear</button>
     </section>
 
+    <section class="sos-modal" id="sosModal" aria-live="assertive">
+      <div class="sos-modal-card">
+        <div class="warning-triangle">!</div>
+        <h2>SOS EMERGENCY</h2>
+        <p>Immediate worker assistance required.</p>
+        <div class="sos-location-box">
+          <span>Last Known Location</span>
+          <strong id="sosLastLocation">Waiting for GPS...</strong>
+        </div>
+        <div class="sos-modal-actions">
+          <a id="sosMapLink" href="#" target="_blank" rel="noreferrer">Open Location</a>
+          <button id="closeSosModal" type="button">Acknowledge</button>
+        </div>
+      </div>
+    </section>
+
     <section class="grid">
       <article class="card">
         <div class="title">Gas Level</div>
@@ -124,55 +140,50 @@
         <a class="map-link" id="mapLink" href="#" target="_blank" rel="noreferrer">Open in Google Maps</a>
       </div>
 
-      <div class="map-layout">
-        <div id="mapFrame" class="live-map"></div>
-
-        <aside class="route-panel">
-          <div class="route-card start">
-            <span>Start Point</span>
-            <strong id="startPoint">Waiting...</strong>
-          </div>
-
-          <div class="route-card current">
-            <span>Current Point</span>
-            <strong id="currentPoint">Waiting...</strong>
-          </div>
-
-          <div class="route-stats">
-            <div>
-              <span>Total Distance</span>
-              <strong id="routeDistance">0 m</strong>
+      <div class="tracking-layout">
+        <div class="map-column">
+          <div id="mapFrame" class="live-map"></div>
+          <aside class="route-panel">
+            <div class="route-card start">
+              <span>Start Point</span>
+              <strong id="startPoint">Waiting...</strong>
             </div>
-            <div>
-              <span>Route Points</span>
-              <strong id="routeCount">0</strong>
-            </div>
-          </div>
 
-          <div class="route-history">
-            <div class="route-history-title">Recent Movement</div>
-            <ol id="routeList"></ol>
-          </div>
-        </aside>
-      </div>
-
-      <section class="depth-panel">
-        <div class="depth-head">
-          <div>
-            <h2>Tunnel Route Profile</h2>
-            <p>Depth, distance, and north/south/east/west movement in one profile</p>
-          </div>
-          <div class="depth-actions">
-            <div class="depth-chip" id="depthChip">Depth 0 m | N 0 m, E 0 m</div>
-            <div class="profile-tools" aria-label="Tunnel profile controls">
-              <button id="profileZoomOut" type="button">-</button>
-              <button id="profileReset" type="button">Reset</button>
-              <button id="profileZoomIn" type="button">+</button>
+            <div class="route-card current">
+              <span>Current Point</span>
+              <strong id="currentPoint">Waiting...</strong>
             </div>
-          </div>
+
+            <div class="route-stats">
+              <div>
+                <span>Total Distance</span>
+                <strong id="routeDistance">0 m</strong>
+              </div>
+              <div>
+                <span>Route Points</span>
+                <strong id="routeCount">0</strong>
+              </div>
+            </div>
+          </aside>
         </div>
 
-        <div class="profile-layout">
+        <section class="depth-panel">
+          <div class="depth-head">
+            <div>
+              <h2>Tunnel Route Profile</h2>
+              <p>Depth, distance, and north/south/east/west movement in one profile</p>
+            </div>
+            <div class="depth-actions">
+              <div class="depth-chip" id="depthChip">Depth 0 m | N 0 m, E 0 m</div>
+              <div class="profile-tools" aria-label="Tunnel profile controls">
+                <button id="profileZoomOut" type="button">-</button>
+                <button id="profileCalibrate" type="button">Calibrate</button>
+                <button id="profileReset" type="button">Reset</button>
+                <button id="profileZoomIn" type="button">+</button>
+              </div>
+            </div>
+          </div>
+
           <svg id="depthSvg" viewBox="0 0 900 360" class="depth-svg" role="img" aria-label="Merged tunnel route and depth profile">
             <defs>
               <linearGradient id="skyGradient" x1="0" y1="0" x2="0" y2="1">
@@ -210,6 +221,12 @@
               <path id="depthRouteFill" d="" class="depth-route-fill"></path>
               <polyline id="depthRoute" points="" class="depth-route"></polyline>
               <polyline id="directionRoute" points="" class="direction-route"></polyline>
+              <g id="movingScale" class="moving-scale">
+                <line x1="142" y1="104" x2="242" y2="104"></line>
+                <line x1="142" y1="98" x2="142" y2="110"></line>
+                <line x1="242" y1="98" x2="242" y2="110"></line>
+                <text x="178" y="96">10 m</text>
+              </g>
               <circle id="depthStart" cx="142" cy="142" r="7" class="depth-start"></circle>
               <circle id="depthPerson" cx="142" cy="142" r="10" class="depth-person"></circle>
 
@@ -239,8 +256,8 @@
               <ol id="movementSteps"></ol>
             </div>
           </aside>
-        </div>
-      </section>
+        </section>
+      </div>
     </section>
   </main>
 

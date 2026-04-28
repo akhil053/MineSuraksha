@@ -10,6 +10,10 @@ const mapLink = document.getElementById("mapLink");
 const sosAlert = document.getElementById("sosAlert");
 const sosText = document.getElementById("sosText");
 const clearSos = document.getElementById("clearSos");
+const sosModal = document.getElementById("sosModal");
+const sosLastLocation = document.getElementById("sosLastLocation");
+const sosMapLink = document.getElementById("sosMapLink");
+const closeSosModal = document.getElementById("closeSosModal");
 const startPoint = document.getElementById("startPoint");
 const currentPoint = document.getElementById("currentPoint");
 const routeDistance = document.getElementById("routeDistance");
@@ -22,6 +26,7 @@ const depthPerson = document.getElementById("depthPerson");
 const depthChip = document.getElementById("depthChip");
 const depthLabels = document.getElementById("depthLabels");
 const directionRoute = document.getElementById("directionRoute");
+const movingScale = document.getElementById("movingScale");
 const profileDistance = document.getElementById("profileDistance");
 const profileDepth = document.getElementById("profileDepth");
 const profilePosition = document.getElementById("profilePosition");
@@ -30,6 +35,7 @@ const profileViewport = document.getElementById("profileViewport");
 const profileZoomIn = document.getElementById("profileZoomIn");
 const profileZoomOut = document.getElementById("profileZoomOut");
 const profileReset = document.getElementById("profileReset");
+const profileCalibrate = document.getElementById("profileCalibrate");
 
 let espIp = localStorage.getItem("helmetEspIp") || "";
 let liveMap = null;
@@ -42,17 +48,29 @@ let virtualOrigin = null;
 let virtualPosition = { north: 0, east: 0 };
 let virtualRoutePoints = [];
 let depthProfilePoints = [{ distance: 0, depth: 0 }];
+let latestPhoneSnapshot = null;
+let acceptedPhoneLocation = null;
+let lastAcceptedPhoneAt = 0;
+let calibration = {
+  beta: 0,
+  gamma: 0,
+  motion: 9.81,
+  active: false
+};
 let isAnimatingMarker = false;
 let pendingMarkerTarget = null;
 let lastVirtualStepAt = 0;
+let motionStreak = 0;
 let profileTransform = { scale: 1, x: 0, y: 0 };
-let isProfileDragging = false;
-let profileDragStart = { x: 0, y: 0 };
-let profilePanStart = { x: 0, y: 0 };
 
 const MAX_ROUTE_POINTS = 120;
 const MIN_ROUTE_MOVE_METERS = 0.2;
 const VIRTUAL_STEP_GAP = 1200;
+const GRAVITY_MOTION = 9.81;
+const WALK_MOTION_THRESHOLD = 1.25;
+const REQUIRED_MOTION_STREAK = 1;
+const PHONE_UPDATE_INTERVAL = 1000;
+const MIN_GPS_ACCEPT_METERS = 0.2;
 const DEPTH_MAX_METERS = 100;
 const DEPTH_LEFT = 142;
 const DEPTH_RIGHT = 825;
@@ -95,6 +113,63 @@ function zoomProfile(factor, centerX = 450, centerY = 180) {
 function resetProfileView() {
   profileTransform = { scale: 1, x: 0, y: 0 };
   applyProfileTransform();
+}
+
+function resetTrackingProfile() {
+  resetProfileView();
+  virtualPosition = { north: 0, east: 0 };
+  virtualRoutePoints = [{ north: 0, east: 0 }];
+  depthProfilePoints = [{ distance: 0, depth: 0 }];
+  lastVirtualStepAt = 0;
+  motionStreak = 0;
+
+  if (latestPhoneSnapshot && latestPhoneSnapshot.lat !== null && latestPhoneSnapshot.lng !== null) {
+    const lat = Number(latestPhoneSnapshot.lat);
+    const lng = Number(latestPhoneSnapshot.lng);
+    acceptedPhoneLocation = [lat, lng];
+    lastAcceptedPhoneAt = Date.now();
+    routePoints = [[lat, lng]];
+
+    if (routeLine) {
+      routeLine.setLatLngs(routePoints);
+    }
+
+    if (startMarker) {
+      startMarker.setLatLng([lat, lng]);
+    }
+
+    if (liveMarker) {
+      liveMarker.setLatLng([lat, lng]);
+    }
+
+    startPoint.textContent = formatPoint(lat, lng);
+    currentPoint.textContent = formatPoint(lat, lng);
+    routeDistance.textContent = "0 m";
+    routeCount.textContent = "1";
+    routeList.innerHTML = `<li><span>Now</span><strong>${formatPoint(lat, lng)}</strong></li>`;
+  }
+
+  profileDistance.textContent = "0 m";
+  profileDepth.textContent = "0 m";
+  profilePosition.textContent = "N 0 m, E 0 m";
+  depthChip.textContent = "Depth 0 m | N 0 m, E 0 m";
+  movementSteps.innerHTML = "<li><span>Start</span><strong>No movement yet</strong></li>";
+  updateDepthProfile();
+}
+
+function calibrateTracking() {
+  if (latestPhoneSnapshot) {
+    calibration = {
+      beta: Number(latestPhoneSnapshot.beta || 0),
+      gamma: Number(latestPhoneSnapshot.gamma || 0),
+      motion: Number(latestPhoneSnapshot.motion || GRAVITY_MOTION),
+      active: true
+    };
+  }
+
+  resetTrackingProfile();
+  depthChip.textContent = "Calibration set | Depth 0 m | N 0 m, E 0 m";
+  profilePosition.textContent = "Calibration set at current phone state";
 }
 
 function svgPointFromEvent(event) {
@@ -247,18 +322,13 @@ function updateDepthProfile() {
   const directionString = directionPoints.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
   const latest = points[points.length - 1];
   const latestRelative = relativePoints[relativePoints.length - 1] || { north: 0, east: 0 };
+  const currentVisualPoint = directionPoints[directionPoints.length - 1] || latest;
 
   depthRoute.setAttribute("points", pointString);
   directionRoute.setAttribute("points", directionString);
   depthPerson.setAttribute("cx", latest.x);
-  depthPerson.setAttribute("cy", (directionPoints[directionPoints.length - 1] || latest).y);
-
-  if (profileTransform.scale > 1.01 && !isProfileDragging) {
-    const personPoint = directionPoints[directionPoints.length - 1] || latest;
-    profileTransform.x = 450 - personPoint.x * profileTransform.scale;
-    profileTransform.y = 180 - personPoint.y * profileTransform.scale;
-    applyProfileTransform();
-  }
+  depthPerson.setAttribute("cy", currentVisualPoint.y);
+  movingScale.setAttribute("transform", `translate(${(currentVisualPoint.x - 142).toFixed(1)} ${(currentVisualPoint.y - 104).toFixed(1)})`);
 
   const positionText = `${formatSignedDirection(latestRelative.north, "N", "S")}, ${formatSignedDirection(latestRelative.east, "E", "W")}`;
   depthChip.textContent = `Depth -${latest.depth.toFixed(1)} m | ${positionText}`;
@@ -293,11 +363,9 @@ function updateDepthProfile() {
 
 function addDepthPoint(stepMeters, data) {
   const latest = depthProfilePoints[depthProfilePoints.length - 1] || { distance: 0, depth: 0 };
-  const beta = Number(data.beta || 0);
-  const motion = Number(data.motion || 0);
-  const tiltDepth = Math.max(-0.7, Math.min(0.9, beta / 55));
-  const motionFactor = motion > 10.5 ? 1 : 0.35;
-  const depthDelta = stepMeters * tiltDepth * motionFactor;
+  const beta = Number(data.beta || 0) - (calibration.active ? calibration.beta : 0);
+  const tiltDepth = Math.max(-0.8, Math.min(0.8, beta / 45));
+  const depthDelta = stepMeters * tiltDepth;
   const nextDepth = Math.max(0, Math.min(DEPTH_MAX_METERS, latest.depth + depthDelta));
   const nextDistance = latest.distance + stepMeters;
 
@@ -318,14 +386,23 @@ function updateVirtualMovement(data) {
   }
 
   const motion = Number(data.motion || 0);
-  const beta = Number(data.beta || 0);
-  const gamma = Number(data.gamma || 0);
+  const beta = Number(data.beta || 0) - (calibration.active ? calibration.beta : 0);
+  const gamma = Number(data.gamma || 0) - (calibration.active ? calibration.gamma : 0);
+  const baselineMotion = calibration.active ? calibration.motion : GRAVITY_MOTION;
+  const motionDelta = Math.abs(motion - baselineMotion);
 
-  if (motion < 10.5 && Math.abs(beta) < 12 && Math.abs(gamma) < 12) {
+  if (motionDelta < WALK_MOTION_THRESHOLD) {
+    motionStreak = 0;
     return;
   }
 
-  const stepMeters = Math.min(Math.max((motion - 9.5) * 0.22, 0.25), 1.5);
+  motionStreak += 1;
+
+  if (motionStreak < REQUIRED_MOTION_STREAK) {
+    return;
+  }
+
+  const stepMeters = Math.min(Math.max(motionDelta * 0.28, 0.25), 1.3);
   const useEastWest = Math.abs(gamma) > Math.abs(beta);
 
   if (useEastWest) {
@@ -342,6 +419,7 @@ function updateVirtualMovement(data) {
   }
 
   lastVirtualStepAt = now;
+  motionStreak = 0;
   updateDepthProfile();
 }
 
@@ -503,6 +581,7 @@ function showSosAlert(data) {
   }
 
   sosAlert.classList.add("active");
+  sosModal.classList.add("active");
   sosText.textContent = data.lat !== null && data.lng !== null
     ? `Emergency at ${Number(data.lat).toFixed(6)}, ${Number(data.lng).toFixed(6)}`
     : "Emergency triggered. GPS location waiting.";
@@ -510,6 +589,10 @@ function showSosAlert(data) {
   if (liveMap && data.lat !== null && data.lng !== null) {
     const lat = Number(data.lat);
     const lng = Number(data.lng);
+    const locationText = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+
+    sosLastLocation.textContent = locationText;
+    sosMapLink.href = `https://www.google.com/maps?q=${lat},${lng}`;
 
     if (!sosMarker) {
       sosMarker = L.marker([lat, lng], { icon: sosIcon }).addTo(liveMap);
@@ -521,10 +604,14 @@ function showSosAlert(data) {
       animate: true,
       duration: 0.5
     });
+  } else {
+    sosLastLocation.textContent = "GPS location not available yet";
   }
 }
 
 function setPhoneValues(data) {
+  latestPhoneSnapshot = data;
+
   document.getElementById("lat").textContent = data.lat === null ? "--" : Number(data.lat).toFixed(6);
   document.getElementById("lng").textContent = data.lng === null ? "--" : Number(data.lng).toFixed(6);
   document.getElementById("speed").textContent = Number(data.speedKmph || 0).toFixed(1);
@@ -539,12 +626,26 @@ function setPhoneValues(data) {
   if (data.lat !== null && data.lng !== null) {
     const lat = Number(data.lat);
     const lng = Number(data.lng);
+    const now = Date.now();
+    const incomingLocation = [lat, lng];
+    const movedEnough = !acceptedPhoneLocation || distanceMeters(acceptedPhoneLocation, incomingLocation) >= MIN_GPS_ACCEPT_METERS;
+    const timeReady = now - lastAcceptedPhoneAt >= PHONE_UPDATE_INTERVAL;
 
     mapLink.href = `https://www.google.com/maps?q=${lat},${lng}`;
     mapLink.classList.add("active");
 
-    updateLiveMap(lat, lng);
-    updateVirtualMovement(data);
+    if (timeReady) {
+      acceptedPhoneLocation = incomingLocation;
+      lastAcceptedPhoneAt = now;
+      if (movedEnough) {
+        updateLiveMap(lat, lng);
+      }
+      updateVirtualMovement(data);
+    } else if (!liveMap) {
+      acceptedPhoneLocation = incomingLocation;
+      lastAcceptedPhoneAt = now;
+      updateLiveMap(lat, lng);
+    }
   } else {
     updateVirtualMovement(data);
     profilePosition.textContent = `Waiting for GPS | motion ${Number(data.motion || 0).toFixed(2)} m/s2`;
@@ -600,10 +701,15 @@ saveIpButton.addEventListener("click", () => {
 
 clearSos.addEventListener("click", () => {
   sosAlert.classList.remove("active");
+  sosModal.classList.remove("active");
   if (sosMarker && liveMap) {
     liveMap.removeLayer(sosMarker);
     sosMarker = null;
   }
+});
+
+closeSosModal.addEventListener("click", () => {
+  sosModal.classList.remove("active");
 });
 
 profileZoomIn.addEventListener("click", () => {
@@ -615,7 +721,11 @@ profileZoomOut.addEventListener("click", () => {
 });
 
 profileReset.addEventListener("click", () => {
-  resetProfileView();
+  resetTrackingProfile();
+});
+
+profileCalibrate.addEventListener("click", () => {
+  calibrateTracking();
 });
 
 depthSvg.addEventListener("wheel", (event) => {
@@ -624,38 +734,8 @@ depthSvg.addEventListener("wheel", (event) => {
   zoomProfile(event.deltaY < 0 ? 1.12 : 0.9, point.x, point.y);
 }, { passive: false });
 
-depthSvg.addEventListener("pointerdown", (event) => {
-  isProfileDragging = true;
-  depthSvg.setPointerCapture(event.pointerId);
-  profileDragStart = { x: event.clientX, y: event.clientY };
-  profilePanStart = { x: profileTransform.x, y: profileTransform.y };
-});
-
-depthSvg.addEventListener("pointermove", (event) => {
-  if (!isProfileDragging) {
-    return;
-  }
-
-  const rect = depthSvg.getBoundingClientRect();
-  const dx = ((event.clientX - profileDragStart.x) / rect.width) * 900;
-  const dy = ((event.clientY - profileDragStart.y) / rect.height) * 360;
-
-  profileTransform.x = profilePanStart.x + dx;
-  profileTransform.y = profilePanStart.y + dy;
-  applyProfileTransform();
-});
-
-depthSvg.addEventListener("pointerup", (event) => {
-  isProfileDragging = false;
-  depthSvg.releasePointerCapture(event.pointerId);
-});
-
-depthSvg.addEventListener("pointercancel", () => {
-  isProfileDragging = false;
-});
-
 loadHelmetData();
 loadPhoneData();
 
 setInterval(loadHelmetData, 1500);
-setInterval(loadPhoneData, 1000);
+setInterval(loadPhoneData, PHONE_UPDATE_INTERVAL);
