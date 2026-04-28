@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Phone Sender</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app phone-app">
+    <header class="topbar">
+      <div>
+        <h1>Phone Sender</h1>
+        <p>Sends GPS and gyro data to the dashboard</p>
+      </div>
+      <div class="connection" id="state">Stopped</div>
+    </header>
+
+    <section class="hero phone-hero">
+      <div>
+        <span class="label">Sender Status</span>
+        <div class="status" id="status">READY</div>
+      </div>
+      <div class="phone-actions">
+        <button id="startButton">Start Sending</button>
+        <button id="sosButton" class="sos-button">SOS</button>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <div class="title">Latitude</div>
+        <div class="value compact"><span id="lat">--</span></div>
+      </article>
+      <article class="card">
+        <div class="title">Longitude</div>
+        <div class="value compact"><span id="lng">--</span></div>
+      </article>
+      <article class="card">
+        <div class="title">Speed</div>
+        <div class="value"><span id="speed">0</span> <small>km/h</small></div>
+      </article>
+      <article class="card">
+        <div class="title">Accuracy</div>
+        <div class="value"><span id="accuracy">0</span> <small>m</small></div>
+      </article>
+      <article class="card">
+        <div class="title">Alpha</div>
+        <div class="value"><span id="alpha">0</span><small> deg</small></div>
+      </article>
+      <article class="card">
+        <div class="title">Beta</div>
+        <div class="value"><span id="beta">0</span><small> deg</small></div>
+      </article>
+      <article class="card">
+        <div class="title">Gamma</div>
+        <div class="value"><span id="gamma">0</span><small> deg</small></div>
+      </article>
+      <article class="card">
+        <div class="title">Motion</div>
+        <div class="value"><span id="motion">0</span><small> m/s2</small></div>
+      </article>
+    </section>
+  </main>
+
+  <script src="phone.js"></script>
+</body>
+</html>

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Helmet Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app" id="app">
+    <header class="topbar">
+      <div>
+        <h1>Smart Helmet Dashboard</h1>
+        <p>Live data from receiver ESP32 and phone sender</p>
+      </div>
+      <div class="connection" id="connection">Waiting...</div>
+    </header>
+
+    <section class="settings">
+      <label for="espIp">Receiver ESP32 IP</label>
+      <div class="ip-row">
+        <input id="espIp" type="text" placeholder="192.168.1.45" />
+        <button id="saveIp">Connect</button>
+      </div>
+      <p class="hint">Phone sender page: <strong id="phoneUrl">/phone.html</strong></p>
+    </section>
+
+    <section class="hero">
+      <div>
+        <span class="label">Current Status</span>
+        <div class="status" id="status">WAITING</div>
+      </div>
+      <div class="alert" id="alert">Enter the ESP32 IP, open the phone sender page, then press Connect.</div>
+    </section>
+
+    <section class="sos-alert" id="sosAlert">
+      <div>
+        <strong>SOS ALERT</strong>
+        <span id="sosText">The worker triggered an emergency SOS alert.</span>
+      </div>
+      <button id="clearSos">Clear</button>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <div class="title">Gas Level</div>
+        <div class="value"><span id="gas">0</span> <small>ppm</small></div>
+        <div class="bar"><div class="fill" id="gasFill"></div></div>
+      </article>
+
+      <article class="card">
+        <div class="title">Temperature</div>
+        <div class="value"><span id="temp">0</span> <small>deg C</small></div>
+        <div class="bar"><div class="fill" id="tempFill"></div></div>
+      </article>
+
+      <article class="card">
+        <div class="title">Heart Rate</div>
+        <div class="value"><span id="heart">0</span> <small>bpm</small></div>
+        <div class="bar"><div class="fill" id="heartFill"></div></div>
+      </article>
+
+      <article class="card">
+        <div class="title">Helmet Lock</div>
+        <div class="value"><span id="lock">OFF</span></div>
+        <div class="bar"><div class="fill" id="lockFill"></div></div>
+      </article>
+    </section>
+
+    <section class="section-title">
+      <h2>Phone Tracking</h2>
+      <span id="phoneStatus">Waiting for phone...</span>
+    </section>
+
+    <section class="grid tracking-grid">
+      <article class="card">
+        <div class="title">Latitude</div>
+        <div class="value compact"><span id="lat">--</span></div>
+      </article>
+
+      <article class="card">
+        <div class="title">Longitude</div>
+        <div class="value compact"><span id="lng">--</span></div>
+      </article>
+
+      <article class="card">
+        <div class="title">Speed</div>
+        <div class="value"><span id="speed">0</span> <small>km/h</small></div>
+      </article>
+
+      <article class="card">
+        <div class="title">GPS Accuracy</div>
+        <div class="value"><span id="accuracy">0</span> <small>m</small></div>
+      </article>
+
+      <article class="card">
+        <div class="title">Gyro Alpha</div>
+        <div class="value"><span id="alpha">0</span><small> deg</small></div>
+      </article>
+
+      <article class="card">
+        <div class="title">Gyro Beta</div>
+        <div class="value"><span id="beta">0</span><small> deg</small></div>
+      </article>
+
+      <article class="card">
+        <div class="title">Gyro Gamma</div>
+        <div class="value"><span id="gamma">0</span><small> deg</small></div>
+      </article>
+
+      <article class="card">
+        <div class="title">Motion</div>
+        <div class="value"><span id="motion">0</span><small> m/s2</small></div>
+      </article>
+    </section>
+
+    <section class="map-panel">
+      <div class="map-head">
+        <div>
+          <h2>Live Route Tracking</h2>
+          <p>Start point, current location, and movement route shown together</p>
+        </div>
+        <a class="map-link" id="mapLink" href="#" target="_blank" rel="noreferrer">Open in Google Maps</a>
+      </div>
+
+      <div class="map-layout">
+        <div id="mapFrame" class="live-map"></div>
+
+        <aside class="route-panel">
+          <div class="route-card start">
+            <span>Start Point</span>
+            <strong id="startPoint">Waiting...</strong>
+          </div>
+
+          <div class="route-card current">
+            <span>Current Point</span>
+            <strong id="currentPoint">Waiting...</strong>
+          </div>
+
+          <div class="route-stats">
+            <div>
+              <span>Total Distance</span>
+              <strong id="routeDistance">0 m</strong>
+            </div>
+            <div>
+              <span>Route Points</span>
+              <strong id="routeCount">0</strong>
+            </div>
+          </div>
+
+          <div class="route-history">
+            <div class="route-history-title">Recent Movement</div>
+            <ol id="routeList"></ol>
+          </div>
+        </aside>
+      </div>
+
+      <section class="depth-panel">
+        <div class="depth-head">
+          <div>
+            <h2>Tunnel Route Profile</h2>
+            <p>Depth, distance, and north/south/east/west movement in one profile</p>
+          </div>
+          <div class="depth-actions">
+            <div class="depth-chip" id="depthChip">Depth 0 m | N 0 m, E 0 m</div>
+            <div class="profile-tools" aria-label="Tunnel profile controls">
+              <button id="profileZoomOut" type="button">-</button>
+              <button id="profileReset" type="button">Reset</button>
+              <button id="profileZoomIn" type="button">+</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="profile-layout">
+          <svg id="depthSvg" viewBox="0 0 900 360" class="depth-svg" role="img" aria-label="Merged tunnel route and depth profile">
+            <defs>
+              <linearGradient id="skyGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#f4e7d7"></stop>
+                <stop offset="100%" stop-color="#d7bda5"></stop>
+              </linearGradient>
+              <linearGradient id="earthGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#8a7359"></stop>
+                <stop offset="100%" stop-color="#604b38"></stop>
+              </linearGradient>
+              <pattern id="profileGridPattern" width="28" height="28" patternUnits="userSpaceOnUse">
+                <path d="M 28 0 L 0 0 0 28" fill="none" stroke="rgba(255,255,255,0.11)" stroke-width="1"></path>
+              </pattern>
+            </defs>
+
+            <rect x="0" y="0" width="900" height="360" fill="url(#skyGradient)"></rect>
+            <g id="profileViewport">
+              <path class="mountain far" d="M0,88 C95,42 150,95 235,55 C310,18 390,80 475,50 C565,18 635,86 720,56 C790,32 840,58 900,42 L900,132 L0,132 Z"></path>
+              <path class="mountain near" d="M0,120 C105,76 174,132 268,98 C374,58 438,134 548,106 C666,72 720,118 816,92 C855,82 880,90 900,86 L900,155 L0,155 Z"></path>
+              <path class="earth" d="M0,126 C110,148 198,112 292,138 C380,162 480,126 572,145 C658,164 748,138 900,152 L900,360 L0,360 Z"></path>
+              <path class="earth-shadow" d="M0,154 C120,172 210,140 306,164 C408,188 496,154 602,174 C696,194 762,168 900,184 L900,360 L0,360 Z"></path>
+              <rect x="0" y="126" width="900" height="234" fill="url(#profileGridPattern)" opacity="0.55"></rect>
+
+              <line x1="52" y1="126" x2="52" y2="318" class="depth-axis"></line>
+              <line x1="46" y1="126" x2="58" y2="126" class="depth-tick"></line>
+              <line x1="46" y1="214" x2="58" y2="214" class="depth-tick"></line>
+              <line x1="46" y1="318" x2="58" y2="318" class="depth-tick"></line>
+              <text x="64" y="131" class="depth-label">+0m</text>
+              <text x="64" y="219" class="depth-label">-50m</text>
+              <text x="64" y="323" class="depth-label">-100m</text>
+
+              <line x1="172" y1="326" x2="825" y2="326" class="distance-axis"></line>
+              <text x="438" y="348" class="depth-label">Distance travelled + route direction</text>
+
+              <path id="depthRouteFill" d="" class="depth-route-fill"></path>
+              <polyline id="depthRoute" points="" class="depth-route"></polyline>
+              <polyline id="directionRoute" points="" class="direction-route"></polyline>
+              <circle id="depthStart" cx="142" cy="142" r="7" class="depth-start"></circle>
+              <circle id="depthPerson" cx="142" cy="142" r="10" class="depth-person"></circle>
+
+              <g id="depthLabels"></g>
+            </g>
+          </svg>
+
+          <aside class="profile-side">
+            <div class="route-stats">
+              <div>
+                <span>Total Distance</span>
+                <strong id="profileDistance">0 m</strong>
+              </div>
+              <div>
+                <span>Current Depth</span>
+                <strong id="profileDepth">0 m</strong>
+              </div>
+            </div>
+
+            <div class="route-card current">
+              <span>Relative Position</span>
+              <strong id="profilePosition">N 0 m, E 0 m</strong>
+            </div>
+
+            <div class="movement-card merged">
+              <div class="route-history-title">Direction Steps</div>
+              <ol id="movementSteps"></ol>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
