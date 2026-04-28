@@ -56,12 +56,33 @@ function serveFile(req, res) {
 }
 
 const server = http.createServer((req, res) => {
+  const requestUrl = new URL(req.url, `http://${req.headers.host}`);
+
   if (req.method === "OPTIONS") {
     send(res, 204, "text/plain", "");
     return;
   }
 
-  if (req.url === "/phone-data" && req.method === "POST") {
+  if (requestUrl.pathname === "/esp-data" && req.method === "GET") {
+    const ip = requestUrl.searchParams.get("ip") || "";
+
+    if (!/^[a-zA-Z0-9.:-]+$/.test(ip)) {
+      send(res, 400, "application/json", JSON.stringify({ error: "Invalid ESP IP" }));
+      return;
+    }
+
+    fetch(`http://${ip}/data`)
+      .then((espResponse) => espResponse.text())
+      .then((body) => {
+        send(res, 200, "application/json", body);
+      })
+      .catch(() => {
+        send(res, 502, "application/json", JSON.stringify({ online: false, error: "ESP not reachable" }));
+      });
+    return;
+  }
+
+  if (requestUrl.pathname === "/phone-data" && req.method === "POST") {
     let body = "";
 
     req.on("data", (chunk) => {
@@ -82,7 +103,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (req.url === "/phone-data" && req.method === "GET") {
+  if (requestUrl.pathname === "/phone-data" && req.method === "GET") {
     const online = Date.now() - latestPhoneData.timestamp < 5000;
     send(res, 200, "application/json", JSON.stringify({ ...latestPhoneData, online }));
     return;
